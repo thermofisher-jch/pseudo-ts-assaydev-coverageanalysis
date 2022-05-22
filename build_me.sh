@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# The model
 history="./hist_size.csv"
 
 # Strip csd-genexus- and psuedo- prefixes away from working directory name
