@@ -2,48 +2,70 @@
 
 # The model
 history="./hist_size.csv"
+state_now="./state_now.dat"
+artifact_names="./artifact_names.dat"
+
 
 # Strip csd-genexus- and psuedo- prefixes away from working directory name
 # to get the artifact name of project being build
-basedir="$(basename "$(pwd)")"
-artifact="$(echo "${basedir}" | sed 's/csd-genexus-//' | sed 's/pseudo-//')"
-echo "${artifact}"
+# basedir="$(basename "$(pwd)")"
+# artifact="$(echo "${basedir}" | sed 's/csd-genexus-//' | sed 's/pseudo-//')"
+# echo "${artifact}"
 
 # Inspect checked in state file to understand what version we are pretending
 # to be building a component of the bundle for.
 state_now="$(cat state_now.dat)"
 echo "${state_now}"
 
+cat > uploadBuildSpec.json << EOF
+{
+    "files": [
+EOF
+
 # Find the line for the component that will belong in the bundle whose
 # version was given by ${state_now} and pull it by FTP, simulating a genuine
 # build.
-for line in $(grep "^${artifact}" "${history}")
+first_line=1
+for artifact in $(cat "${artifact_names}")
 do
-	echo "${line}"
-	match_to="$(echo $line | awk -F, '{print $8}')"
-	echo "${match_to}"
-	if [[ "${match_to}" == "${state_now}" ]]
-	then
-		url="$(echo "${line}" | awk -F, '{ print "http://lemon.itw/"$4"/TSDx/AssayDev/updates/"$1"_"$2"_"$3".deb" }')"
-		wget "${url}"
-		file="$(basename "${url}")"
-		file_name_length="$(($(echo "${file}" | wc -c) - 1))"
-		build_output_name="$(echo "${file}" | head -"${file_name_length}c" | tee build_output_name.dat)"
-		cat > uploadBuildSpec.yaml << EOF
-{
-    "files": [
+	artifact_found=0
+	for line in $(grep "^${artifact}" "${history}")
+	do
+		echo "${line}"
+		match_to="$(echo $line | awk -F, '{print $8}')"
+		echo "${match_to}"
+		if [[ "${match_to}" == "${state_now}" ]]
+		then
+			artifact_found=1
+			url="$(echo "${line}" | awk -F, '{ print "http://lemon.itw/"$4"/TSDx/"$10"/updates/"$1"_"$2"_"$3".deb" }')"
+			wget "${url}"
+			file="$(basename "${url}")"
+			mode="$(echo $line | awk -F, '{print $10}')"
+			architecture="$(echo $line | awk -F, '{print $3}')"
+			if [[ "${first_line}" -eq 0 ]]
+			then
+				echo "," >> uploadBuildSpec.json
+			else
+				first_line=0
+			fi
+			cat >> uploadBuildSpec.json << EOF
         {
-            "pattern": "./${build_output_name}",
-	    "target": "csd-genexus-debian-dev/${build_output_name}",
-            "props": "test_prop=test_value;magic=wand;deb.distribution=bionic;deb.component=main;deb.architecture=amd64"
+            "pattern": "./${file}",
+	    "target": "csd-genexus-debian-dev/pool/main/${artifact}/${file}",
+            "props": "mode=${mode};deb.distribution=bionic;deb.component=main;deb.architecture=${architecture}"
         }
-    ]
-}
 EOF
-
-		exit 0
+			break
+		fi
+	done
+	if [[ "${artifact_found}" -eq 0 ]]
+	then
+		echo "artifact ${artifact} not found"
+		exit 1
 	fi
 done
 
-echo "artifact not found"
-exit 1
+cat >> uploadBuildSpec.json << EOF
+    ]
+}
+EOF

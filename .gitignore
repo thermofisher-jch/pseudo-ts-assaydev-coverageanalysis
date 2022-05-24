@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Build temp files
+uploadBuildSpec.json
+*.deb
