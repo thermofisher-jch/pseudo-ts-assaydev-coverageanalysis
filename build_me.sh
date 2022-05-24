@@ -5,6 +5,7 @@ history="./hist_size.csv"
 state_now="./state_now.dat"
 artifact_names="./artifact_names.dat"
 
+env
 
 # Strip csd-genexus- and psuedo- prefixes away from working directory name
 # to get the artifact name of project being build
